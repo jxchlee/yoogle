@@ -12,7 +12,7 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { SearchForm } from "@/components/yougle-common";
+import { Logo, SearchForm } from "@/components/yougle-common";
 import { HistorySheet, PrefsSheet } from "@/components/yougle-sheets";
 import type { SearchResponse, SearchResult, WatchHistoryItem } from "@/lib/types";
 import {
@@ -28,11 +28,53 @@ import {
   writeStore,
 } from "@/lib/yougle-client";
 
+function parseStartTimeToSeconds(value: string) {
+  const parts = value
+    .trim()
+    .split(":")
+    .map((part) => Number(part));
+
+  if (parts.some((part) => Number.isNaN(part) || part < 0)) {
+    return 0;
+  }
+
+  if (parts.length === 3) {
+    const [hours, minutes, seconds] = parts;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  if (parts.length === 2) {
+    const [minutes, seconds] = parts;
+    return minutes * 60 + seconds;
+  }
+
+  if (parts.length === 1) {
+    return parts[0] ?? 0;
+  }
+
+  return 0;
+}
+
+function sanitizeStartSeconds(value: string | null) {
+  const seconds = Number(value ?? "0");
+
+  if (Number.isNaN(seconds) || seconds < 0) {
+    return 0;
+  }
+
+  return Math.floor(seconds);
+}
+
+function escapeHtmlAttribute(value: string) {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+}
+
 function WatchPageShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeQuery = searchParams.get("q")?.trim() ?? "";
   const videoId = searchParams.get("video") ?? "";
+  const startAt = sanitizeStartSeconds(searchParams.get("t"));
 
   const [inputValue, setInputValue] = useState(activeQuery);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
@@ -45,6 +87,11 @@ function WatchPageShell() {
   const [source, setSource] = useState<"sample" | "youtube" | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareMode, setShareMode] = useState<"link" | "embed">("link");
+  const [shareCopyState, setShareCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const [includeStartTime, setIncludeStartTime] = useState(false);
+  const [startTimeInput, setStartTimeInput] = useState("0:00");
   const deferredInput = useDeferredValue(inputValue);
 
   useEffect(() => {
@@ -160,6 +207,10 @@ function WatchPageShell() {
 
   const openVideo = (video: SearchResult) => {
     setSelectedVideo(video);
+    setShareOpen(false);
+    setShareCopyState("idle");
+    setIncludeStartTime(false);
+    setStartTimeInput("0:00");
 
     if (settings.watchHistoryEnabled) {
       persistWatchHistory(saveWatch(watchHistory, video));
@@ -210,6 +261,40 @@ function WatchPageShell() {
   };
 
   const sideResults = results.filter((item) => item.id !== selectedVideo?.id);
+  const manualStartSeconds = includeStartTime ? parseStartTimeToSeconds(startTimeInput) : 0;
+  const shareUrl =
+    selectedVideo && typeof window !== "undefined"
+      ? `${window.location.origin}/watch?video=${selectedVideo.id}${
+          activeQuery ? `&q=${encodeURIComponent(activeQuery)}` : ""
+        }${includeStartTime && manualStartSeconds > 0 ? `&t=${manualStartSeconds}` : ""}`
+      : "";
+  const embedUrl = selectedVideo
+    ? `https://www.youtube.com/embed/${selectedVideo.id}?rel=0${
+        includeStartTime && manualStartSeconds > 0 ? `&start=${manualStartSeconds}` : ""
+      }`
+    : "";
+  const embedCode = selectedVideo
+    ? `<iframe width="560" height="315" src="${embedUrl}" title="${escapeHtmlAttribute(
+        selectedVideo.title,
+      )}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
+    : "";
+
+  const handleShareCopy = async () => {
+    if (!selectedVideo) {
+      return;
+    }
+
+    const textToCopy = shareMode === "embed" ? embedCode : shareUrl;
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setShareCopyState("copied");
+      window.setTimeout(() => setShareCopyState("idle"), 1600);
+    } catch {
+      setShareCopyState("failed");
+      window.setTimeout(() => setShareCopyState("idle"), 1600);
+    }
+  };
 
   return (
     <>
@@ -218,10 +303,10 @@ function WatchPageShell() {
           <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:px-6">
             <button
               type="button"
-              onClick={() => router.push(activeQuery ? `/?q=${encodeURIComponent(activeQuery)}` : "/")}
-              className="cursor-pointer rounded-full px-4 py-2 text-sm text-[#202124] hover:bg-[#f1f3f4]"
+              onClick={() => router.push("/")}
+              className="shrink-0 cursor-pointer"
             >
-              Back
+              <Logo small />
             </button>
             <div className="max-w-[720px] flex-1">
               <SearchForm
@@ -287,7 +372,7 @@ function WatchPageShell() {
                     <div className="aspect-video">
                       <iframe
                         title={selectedVideo.title}
-                        src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&playsinline=1&rel=0`}
+                        src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&playsinline=1&rel=0${startAt > 0 ? `&start=${startAt}` : ""}`}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
                         className="h-full w-full"
@@ -312,6 +397,16 @@ function WatchPageShell() {
                       >
                         Open on YouTube
                       </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShareOpen(true);
+                          setShareMode("link");
+                        }}
+                        className="cursor-pointer rounded-full border border-[var(--line)] bg-white px-5 py-2.5 text-sm font-medium text-[#202124] transition-colors hover:bg-[#f8f9fa]"
+                      >
+                        Share
+                      </button>
                       {source === "sample" ? (
                         <span className="rounded-full bg-[#fff8e1] px-3 py-2 text-xs text-[#8d6e63]">
                           Sample mode
@@ -402,6 +497,104 @@ function WatchPageShell() {
         onClearSearchHistory={clearSearchItems}
         onClearWatchHistory={clearWatchItems}
       />
+
+      {shareOpen && selectedVideo ? (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 px-4"
+          onClick={() => setShareOpen(false)}
+        >
+          <div
+            className="w-full max-w-[520px] rounded-3xl bg-white shadow-[0_24px_80px_rgba(0,0,0,0.25)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-5">
+              <h2 className="text-[28px] font-medium text-[#202124]">Share</h2>
+              <button
+                type="button"
+                onClick={() => setShareOpen(false)}
+                className="cursor-pointer rounded-full p-2 text-[#202124] hover:bg-[#f1f3f4]"
+              >
+                x
+              </button>
+            </div>
+
+            <div className="border-b border-[var(--line)] px-6 pb-5">
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setShareMode("embed")}
+                  className={`cursor-pointer rounded-full px-5 py-3 text-sm font-medium ${
+                    shareMode === "embed"
+                      ? "bg-[#f1f3f4] text-[#202124]"
+                      : "bg-white text-[#606060]"
+                  }`}
+                >
+                  Embed
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShareMode("link")}
+                  className={`cursor-pointer rounded-full px-5 py-3 text-sm font-medium ${
+                    shareMode === "link"
+                      ? "bg-[#f1f3f4] text-[#202124]"
+                      : "bg-white text-[#606060]"
+                  }`}
+                >
+                  Link
+                </button>
+              </div>
+            </div>
+
+            <div className="px-6 py-5">
+              <div className="flex items-center gap-3 rounded-2xl border border-[var(--line)] px-4 py-3">
+                {shareMode === "embed" ? (
+                  <textarea
+                    readOnly
+                    rows={4}
+                    value={embedCode}
+                    className="w-full resize-none bg-transparent text-sm leading-6 text-[#202124] outline-none"
+                  />
+                ) : (
+                  <input
+                    readOnly
+                    value={shareUrl}
+                    className="w-full bg-transparent text-sm text-[#202124] outline-none"
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={handleShareCopy}
+                  className="cursor-pointer rounded-full bg-[#065fd4] px-5 py-2.5 text-sm font-medium text-white"
+                >
+                  {shareCopyState === "copied"
+                    ? "Copied"
+                    : shareCopyState === "failed"
+                      ? "Failed"
+                      : "Copy"}
+                </button>
+              </div>
+
+              <div className="mt-6 border-t border-[var(--line)] pt-5">
+                <label className="flex items-center gap-3 text-sm text-[#202124]">
+                  <input
+                    type="checkbox"
+                    checked={includeStartTime}
+                    onChange={(event) => setIncludeStartTime(event.target.checked)}
+                    className="h-4 w-4 cursor-pointer accent-[#202124]"
+                  />
+                  <span>Start at:</span>
+                  <input
+                    value={startTimeInput}
+                    onChange={(event) => setStartTimeInput(event.target.value)}
+                    disabled={!includeStartTime}
+                    className="w-20 rounded-md border border-[var(--line)] px-2 py-1 text-sm text-[#606060] disabled:border-transparent disabled:bg-transparent"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

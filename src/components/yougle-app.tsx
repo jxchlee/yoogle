@@ -280,7 +280,11 @@ function YougleShell() {
         <div className="min-h-screen bg-white">
           <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-white/95 backdrop-blur">
             <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:px-6">
-              <button type="button" onClick={() => setRootQuery("")} className="shrink-0 cursor-pointer">
+              <button
+                type="button"
+                onClick={() => router.push("/")}
+                className="shrink-0 cursor-pointer"
+              >
                 <Logo small />
               </button>
               <div className="max-w-[720px] flex-1">

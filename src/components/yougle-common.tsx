@@ -160,3 +160,29 @@ export function SearchForm({
     </div>
   );
 }
+
+export function SiteFooter() {
+  return (
+    <footer className="border-t border-[var(--line)] bg-white">
+      <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-4 py-6 text-sm text-[#5f6368] sm:px-6 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <p>Minimal YouTube search with fewer distractions.</p>
+          <p>Unofficial project. Content belongs to YouTube and its respective owners.</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <Link href="/info" className="hover:text-[#202124]">
+            Info
+          </Link>
+          <a
+            href="https://github.com/jxchlee/yoogle"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[#202124]"
+          >
+            GitHub
+          </a>
+        </div>
+      </div>
+    </footer>
+  );
+}

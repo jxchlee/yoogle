@@ -41,7 +41,12 @@ export function saveWatch(history: WatchHistoryItem[], video: SearchResult) {
     id: video.id,
     title: video.title,
     channelTitle: video.channelTitle,
+    description: video.description,
     thumbnailUrl: video.thumbnailUrl,
+    publishedAt: video.publishedAt,
+    publishedLabel: video.publishedLabel,
+    duration: video.duration,
+    viewCount: video.viewCount,
     watchedAt: new Date().toISOString(),
   };
 
@@ -82,10 +87,11 @@ export function watchHistoryToResult(item: WatchHistoryItem): SearchResult {
     id: item.id,
     title: item.title,
     channelTitle: item.channelTitle,
-    description: "Opened from your yougle watch history.",
+    description: item.description ?? "Opened from your yougle watch history.",
     thumbnailUrl: item.thumbnailUrl,
-    publishedAt: item.watchedAt,
-    publishedLabel: "From your history",
-    duration: "Saved",
+    publishedAt: item.publishedAt ?? item.watchedAt,
+    publishedLabel: item.publishedLabel ?? "From your history",
+    duration: item.duration ?? "Saved",
+    viewCount: item.viewCount,
   };
 }

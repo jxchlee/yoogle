@@ -220,10 +220,15 @@ export function PrefsSheet({
             }
             className="mt-4 h-10 w-full cursor-pointer rounded-xl border border-[var(--line)] px-3 text-sm outline-none"
           >
-            <option value="KR">Korea</option>
             <option value="US">United States</option>
+            <option value="KR">Korea</option>
+            <option value="CA">Canada</option>
+            <option value="AU">Australia</option>
+            <option value="IN">India</option>
             <option value="JP">Japan</option>
             <option value="GB">United Kingdom</option>
+            <option value="DE">Germany</option>
+            <option value="FR">France</option>
           </select>
         </label>
 

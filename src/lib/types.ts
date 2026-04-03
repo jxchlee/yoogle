@@ -26,6 +26,11 @@ export type WatchHistoryItem = {
   id: string;
   title: string;
   channelTitle: string;
+  description?: string;
   thumbnailUrl: string;
+  publishedAt?: string;
+  publishedLabel?: string;
+  duration?: string;
+  viewCount?: string;
   watchedAt: string;
 };

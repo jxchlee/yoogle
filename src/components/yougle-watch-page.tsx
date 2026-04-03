@@ -12,7 +12,7 @@ import {
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { Logo, SearchForm } from "@/components/yougle-common";
+import { Logo, SearchForm, SiteFooter } from "@/components/yougle-common";
 import { HistorySheet, PrefsSheet } from "@/components/yougle-sheets";
 import type { SearchResponse, SearchResult, WatchHistoryItem } from "@/lib/types";
 import {
@@ -260,7 +260,12 @@ function WatchPageShell() {
     }
   };
 
-  const sideResults = results.filter((item) => item.id !== selectedVideo?.id);
+  const sideResults =
+    results.length > 0
+      ? results.filter((item) => item.id !== selectedVideo?.id)
+      : watchHistory
+          .filter((item) => item.id !== selectedVideo?.id)
+          .map(watchHistoryToResult);
   const manualStartSeconds = includeStartTime ? parseStartTimeToSeconds(startTimeInput) : 0;
   const shareUrl =
     selectedVideo && typeof window !== "undefined"
@@ -298,17 +303,19 @@ function WatchPageShell() {
 
   return (
     <>
-      <div className="min-h-screen bg-white">
+      <div className="flex min-h-screen flex-col bg-white">
         <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-white/95 backdrop-blur">
-          <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:px-6">
-            <button
-              type="button"
-              onClick={() => router.push("/")}
-              className="shrink-0 cursor-pointer"
-            >
-              <Logo small />
-            </button>
-            <div className="max-w-[720px] flex-1">
+          <div className="mx-auto grid max-w-[1400px] grid-cols-[auto_minmax(0,720px)_auto] items-center gap-3 px-4 py-3 sm:px-6">
+            <div className="justify-self-start">
+              <button
+                type="button"
+                onClick={() => router.push("/")}
+                className="shrink-0 cursor-pointer"
+              >
+                <Logo small />
+              </button>
+            </div>
+            <div className="w-full justify-self-center">
               <SearchForm
                 value={inputValue}
                 suggestions={suggestions}
@@ -318,7 +325,7 @@ function WatchPageShell() {
                 onRemoveSuggestion={removeSearchItem}
               />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 justify-self-end">
               <button
                 type="button"
                 onClick={() => {
@@ -351,7 +358,7 @@ function WatchPageShell() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1400px] px-4 pb-12 pt-6 sm:px-6">
+        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 pb-12 pt-6 sm:px-6">
           {error ? (
             <div className="mb-6 rounded-2xl border border-[#f1c0c0] bg-[#fff6f6] px-4 py-4 text-sm text-[#c5221f]">
               {error}
@@ -393,7 +400,7 @@ function WatchPageShell() {
                         href={`https://www.youtube.com/watch?v=${selectedVideo.id}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="youtube-link-button cursor-pointer rounded-full px-5 py-2.5 text-sm font-medium transition-colors"
+                        className="youtube-link-button inline-flex h-10 items-center justify-center rounded-full px-5 text-sm font-medium transition-colors"
                       >
                         Open on YouTube
                       </a>
@@ -469,6 +476,7 @@ function WatchPageShell() {
             </aside>
           </div>
         </main>
+        <SiteFooter />
       </div>
 
       <HistorySheet

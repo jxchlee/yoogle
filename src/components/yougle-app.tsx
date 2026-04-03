@@ -13,7 +13,7 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { Logo, SearchForm, TopBar } from "@/components/yougle-common";
+import { Logo, SearchForm, SiteFooter, TopBar } from "@/components/yougle-common";
 import { HistorySheet, PrefsSheet } from "@/components/yougle-sheets";
 import type { SearchResponse, SearchResult, WatchHistoryItem } from "@/lib/types";
 import {
@@ -248,46 +248,51 @@ function YougleShell() {
   return (
     <>
       {home ? (
-        <main className="relative flex min-h-screen justify-center bg-white px-4 pt-[21vh] sm:pt-[18vh]">
-          <TopBar
-            showInfo
-            absolute
-            onOpenHistory={() => {
-              setHistoryOpen((value) => !value);
-              setPrefsOpen(false);
-            }}
-            onOpenPrefs={() => {
-              setPrefsOpen((value) => !value);
-              setHistoryOpen(false);
-            }}
-          />
-          <div className="w-full max-w-[584px]">
-            <div className="flex justify-center">
-              <Logo />
+        <div className="flex min-h-screen flex-col bg-white">
+          <main className="relative flex flex-1 justify-center px-4 pt-[21vh] sm:pt-[18vh]">
+            <TopBar
+              showInfo
+              absolute
+              onOpenHistory={() => {
+                setHistoryOpen((value) => !value);
+                setPrefsOpen(false);
+              }}
+              onOpenPrefs={() => {
+                setPrefsOpen((value) => !value);
+                setHistoryOpen(false);
+              }}
+            />
+            <div className="w-full max-w-[584px]">
+              <div className="flex justify-center">
+                <Logo />
+              </div>
+              <div className="mt-8">
+                <SearchForm
+                  value={inputValue}
+                  suggestions={suggestions}
+                  onChange={setInputValue}
+                  onSubmit={submitSearch}
+                  onRemoveSuggestion={removeSearchItem}
+                />
+              </div>
             </div>
-            <div className="mt-8">
-              <SearchForm
-                value={inputValue}
-                suggestions={suggestions}
-                onChange={setInputValue}
-                onSubmit={submitSearch}
-                onRemoveSuggestion={removeSearchItem}
-              />
-            </div>
-          </div>
-        </main>
+          </main>
+          <SiteFooter />
+        </div>
       ) : (
-        <div className="min-h-screen bg-white">
+        <div className="flex min-h-screen flex-col bg-white">
           <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-white/95 backdrop-blur">
-            <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:px-6">
-              <button
-                type="button"
-                onClick={() => router.push("/")}
-                className="shrink-0 cursor-pointer"
-              >
-                <Logo small />
-              </button>
-              <div className="max-w-[720px] flex-1">
+            <div className="mx-auto grid max-w-[1400px] grid-cols-[auto_minmax(0,720px)_auto] items-center gap-3 px-4 py-3 sm:px-6">
+              <div className="justify-self-start">
+                <button
+                  type="button"
+                  onClick={() => router.push("/")}
+                  className="shrink-0 cursor-pointer"
+                >
+                  <Logo small />
+                </button>
+              </div>
+              <div className="w-full justify-self-center">
                 <SearchForm
                   value={inputValue}
                   suggestions={suggestions}
@@ -297,7 +302,7 @@ function YougleShell() {
                   onRemoveSuggestion={removeSearchItem}
                 />
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-self-end">
                 <button
                   type="button"
                   onClick={() => {
@@ -331,7 +336,7 @@ function YougleShell() {
             </div>
           </header>
 
-          <main className="mx-auto max-w-[1400px] px-4 pb-12 pt-6 sm:px-6">
+          <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 pb-12 pt-6 sm:px-6">
             <div className="mb-6 flex items-center gap-3 text-sm text-[#606060]">
               <span>
                 Results for <span className="font-medium text-[#202124]">{activeQuery}</span>
@@ -395,6 +400,7 @@ function YougleShell() {
               ) : null}
             </div>
           </main>
+          <SiteFooter />
         </div>
       )}
 

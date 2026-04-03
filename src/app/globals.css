@@ -2,25 +2,75 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #202124;
+  --line: #dadce0;
+  --muted: #5f6368;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-roboto);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: #ffffff;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-roboto), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(26, 115, 232, 0.18);
+}
+
+.google-search-shell {
+  box-shadow: none;
+  transition:
+    box-shadow 120ms ease,
+    border-color 120ms ease;
+}
+
+.google-search-shell:hover,
+.google-search-shell:focus-within {
+  border-color: transparent;
+  box-shadow:
+    0 1px 6px rgba(32, 33, 36, 0.28),
+    0 1px 2px rgba(32, 33, 36, 0.08);
+}
+
+.youtube-link-button {
+  background-color: #1f1f1f !important;
+  color: #f5f5f5 !important;
+  -webkit-text-fill-color: #f5f5f5;
+}
+
+.youtube-link-button:hover {
+  background-color: #2b2b2b !important;
+  color: #f5f5f5 !important;
+  -webkit-text-fill-color: #f5f5f5;
 }

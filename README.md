@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# yougle
 
-## Getting Started
+yougle is a minimal YouTube search interface inspired by the simplicity of the Google home page.
 
-First, run the development server:
+The goal is simple:
+
+- start with search, not recommendations
+- keep the first screen calm and distraction-light
+- let people move from search results into a focused watch page
+- keep recent history optional and local to the browser
+
+## What it does
+
+- minimal home page with a search-first entry point
+- YouTube-style search results inside yougle
+- internal watch page with a large embedded player
+- quick jump to the real YouTube page when needed
+- optional recent search history
+- optional recently watched history
+- local browser storage for history and preferences
+
+## Why it exists
+
+Many people want to search YouTube without immediately landing on a busy recommendation-heavy page.
+
+yougle is designed for:
+
+- studying
+- research
+- focused learning
+- quickly finding one specific video
+
+## Privacy
+
+At the moment, recent searches and watch history are stored only in the local browser on the current device.
+
+- no account is required
+- no separate yougle user database is used for this history
+- users can clear the stored history from inside the app
+
+## Tech stack
+
+- Next.js App Router
+- React
+- Tailwind CSS
+- YouTube Data API v3
+- YouTube embedded player
+
+## Local development
+
+1. Install dependencies
+
+```bash
+npm install
+```
+
+2. Create local environment variables
+
+```bash
+copy .env.example .env.local
+```
+
+3. Add your YouTube API key to `.env.local`
+
+```env
+YOUTUBE_API_KEY=your_real_key_here
+```
+
+4. Start the development server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Open:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+If `YOUTUBE_API_KEY` is not set, the app falls back to sample data so the UI can still be tested.
 
-## Learn More
+## Useful commands
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run dev
+npm run lint
+npm run build
+npm run start
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Current notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- search suggestions currently come from local recent searches, not YouTube autocomplete
+- watch history is yougle-local history, not official YouTube account history
+- the project is still pre-release and may continue to change before public launch
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT

@@ -18,11 +18,13 @@ import { HistorySheet, PrefsSheet } from "@/components/yougle-sheets";
 import type { SearchResponse, SearchResult, WatchHistoryItem } from "@/lib/types";
 import {
   DEFAULT_SETTINGS,
+  getSearchCache,
   readStore,
   saveSearch,
   saveWatch,
   SEARCH_HISTORY_KEY,
   SETTINGS_KEY,
+  setSearchCache,
   suggestionsFor,
   WATCH_HISTORY_KEY,
   watchHistoryToResult,
@@ -113,6 +115,21 @@ function YougleShell() {
       setError(null);
 
       try {
+        const cachedPayload = getSearchCache(
+          trimmed,
+          settings.regionCode,
+          pageToken,
+        );
+
+        if (cachedPayload) {
+          setSource(cachedPayload.source);
+          setResults((previous) =>
+            append ? [...previous, ...cachedPayload.items] : cachedPayload.items,
+          );
+          setNextPageToken(cachedPayload.nextPageToken);
+          return;
+        }
+
         const response = await fetch(
           `/api/search?q=${encodeURIComponent(trimmed)}&regionCode=${settings.regionCode}${pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : ""}`,
           { cache: "no-store" },
@@ -126,6 +143,7 @@ function YougleShell() {
           );
         }
 
+        setSearchCache(trimmed, settings.regionCode, pageToken, payload);
         setSource(payload.source);
         setResults((previous) =>
           append ? [...previous, ...payload.items] : payload.items,

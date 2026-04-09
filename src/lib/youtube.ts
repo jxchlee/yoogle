@@ -1,5 +1,8 @@
-import { createSampleSearchResponse } from "@/lib/sample-data";
-import type { SearchResponse, SearchResult } from "@/lib/types";
+import {
+  createSamplePlaylistEntries,
+  createSampleSearchResponse,
+} from "@/lib/sample-data";
+import type { PlaylistEntry, SearchResponse, SearchResult } from "@/lib/types";
 
 type SearchArgs = {
   query: string;
@@ -10,6 +13,7 @@ type SearchArgs = {
 type SearchItemResponse = {
   id?: {
     videoId?: string;
+    playlistId?: string;
   };
   snippet?: {
     title?: string;
@@ -38,6 +42,40 @@ type VideosResponse = {
     };
     statistics?: {
       viewCount?: string;
+    };
+  }>;
+};
+
+type PlaylistsResponse = {
+  items?: Array<{
+    id?: string;
+    snippet?: {
+      title?: string;
+      description?: string;
+      channelTitle?: string;
+      publishedAt?: string;
+    };
+    contentDetails?: {
+      itemCount?: number;
+    };
+  }>;
+};
+
+type PlaylistItemsResponse = {
+  items?: Array<{
+    id?: string;
+    snippet?: {
+      title?: string;
+      channelTitle?: string;
+      position?: number;
+      thumbnails?: {
+        high?: { url?: string };
+        medium?: { url?: string };
+        default?: { url?: string };
+      };
+      resourceId?: {
+        videoId?: string;
+      };
     };
   }>;
 };
@@ -143,7 +181,7 @@ export async function searchYouTube({
 
   const searchUrl = new URL("https://www.googleapis.com/youtube/v3/search");
   searchUrl.searchParams.set("part", "snippet");
-  searchUrl.searchParams.set("type", "video");
+  searchUrl.searchParams.set("type", "video,playlist");
   searchUrl.searchParams.set("maxResults", "8");
   searchUrl.searchParams.set("q", query);
   searchUrl.searchParams.set("regionCode", regionCode);
@@ -162,7 +200,11 @@ export async function searchYouTube({
     .map((item) => item.id?.videoId)
     .filter((id): id is string => Boolean(id));
 
-  if (videoIds.length === 0) {
+  const playlistIds = (searchResponse.items ?? [])
+    .map((item) => item.id?.playlistId)
+    .filter((id): id is string => Boolean(id));
+
+  if (videoIds.length === 0 && playlistIds.length === 0) {
     return {
       items: [],
       nextPageToken: null,
@@ -170,41 +212,88 @@ export async function searchYouTube({
     };
   }
 
-  const videosUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
-  videosUrl.searchParams.set("part", "snippet,contentDetails,statistics");
-  videosUrl.searchParams.set("id", videoIds.join(","));
-  videosUrl.searchParams.set("key", apiKey);
+  const videoMap = new Map<
+    string,
+    NonNullable<VideosResponse["items"]>[number]
+  >();
 
-  const videosResponse = await fetchJson<VideosResponse>(videosUrl);
-  const videoMap = new Map(
-    (videosResponse.items ?? [])
-      .filter(
-        (
-          item,
-        ): item is NonNullable<VideosResponse["items"]>[number] & { id: string } =>
-          Boolean(item.id),
-      )
-      .map((item) => [item.id, item]),
-  );
+  if (videoIds.length > 0) {
+    const videosUrl = new URL("https://www.googleapis.com/youtube/v3/videos");
+    videosUrl.searchParams.set("part", "snippet,contentDetails,statistics");
+    videosUrl.searchParams.set("id", videoIds.join(","));
+    videosUrl.searchParams.set("key", apiKey);
+
+    const videosResponse = await fetchJson<VideosResponse>(videosUrl);
+
+    for (const item of videosResponse.items ?? []) {
+      if (item.id) {
+        videoMap.set(item.id, item);
+      }
+    }
+  }
+
+  const playlistMap = new Map<
+    string,
+    NonNullable<PlaylistsResponse["items"]>[number]
+  >();
+
+  if (playlistIds.length > 0) {
+    const playlistsUrl = new URL("https://www.googleapis.com/youtube/v3/playlists");
+    playlistsUrl.searchParams.set("part", "snippet,contentDetails");
+    playlistsUrl.searchParams.set("id", playlistIds.join(","));
+    playlistsUrl.searchParams.set("key", apiKey);
+
+    const playlistsResponse = await fetchJson<PlaylistsResponse>(playlistsUrl);
+
+    for (const item of playlistsResponse.items ?? []) {
+      if (item.id) {
+        playlistMap.set(item.id, item);
+      }
+    }
+  }
 
   const items = (searchResponse.items ?? [])
     .map((item): SearchResult | null => {
-      const id = item.id?.videoId;
+      const videoId = item.id?.videoId;
+      const playlistId = item.id?.playlistId;
 
-      if (!id || !item.snippet) {
+      if (!item.snippet || (!videoId && !playlistId)) {
         return null;
       }
 
-      const details = videoMap.get(id);
+      if (playlistId) {
+        const playlist = playlistMap.get(playlistId);
+        const snippet = playlist?.snippet ?? item.snippet;
+        const thumbnailUrl =
+          item.snippet.thumbnails?.high?.url ??
+          item.snippet.thumbnails?.medium?.url ??
+          item.snippet.thumbnails?.default?.url ??
+          "https://i.ytimg.com/vi/jfKfPfyJRdk/hqdefault.jpg";
+
+        return {
+          id: playlistId,
+          resourceType: "playlist",
+          title: snippet.title ?? "Untitled playlist",
+          channelTitle: snippet.channelTitle ?? "Unknown channel",
+          description: snippet.description ?? "",
+          thumbnailUrl,
+          publishedAt: snippet.publishedAt ?? new Date().toISOString(),
+          publishedLabel: formatPublishedLabel(snippet.publishedAt),
+          playlistItemCount: playlist?.contentDetails?.itemCount,
+        };
+      }
+
+      const details = videoMap.get(videoId!);
       const detailSnippet = details?.snippet;
       const thumbnailUrl =
         item.snippet.thumbnails?.high?.url ??
         item.snippet.thumbnails?.medium?.url ??
         item.snippet.thumbnails?.default?.url ??
-        `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+        `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
 
       return {
-        id,
+        id: videoId!,
+        resourceType: "video",
         title: detailSnippet?.title ?? item.snippet.title ?? "Untitled video",
         channelTitle:
           detailSnippet?.channelTitle ?? item.snippet.channelTitle ?? "Unknown channel",
@@ -226,4 +315,50 @@ export async function searchYouTube({
     nextPageToken: searchResponse.nextPageToken ?? null,
     source: "youtube",
   };
+}
+
+export async function fetchPlaylistEntries(
+  playlistId: string,
+): Promise<PlaylistEntry[]> {
+  const apiKey = process.env.YOUTUBE_API_KEY;
+
+  if (!apiKey) {
+    return createSamplePlaylistEntries(playlistId);
+  }
+
+  const playlistItemsUrl = new URL(
+    "https://www.googleapis.com/youtube/v3/playlistItems",
+  );
+  playlistItemsUrl.searchParams.set("part", "snippet");
+  playlistItemsUrl.searchParams.set("playlistId", playlistId);
+  playlistItemsUrl.searchParams.set("maxResults", "25");
+  playlistItemsUrl.searchParams.set("key", apiKey);
+
+  const response = await fetchJson<PlaylistItemsResponse>(playlistItemsUrl);
+
+  return (response.items ?? [])
+    .map((item): PlaylistEntry | null => {
+      const snippet = item.snippet;
+      const videoId = snippet?.resourceId?.videoId;
+
+      if (!snippet || !videoId) {
+        return null;
+      }
+
+      const thumbnailUrl =
+        snippet.thumbnails?.high?.url ??
+        snippet.thumbnails?.medium?.url ??
+        snippet.thumbnails?.default?.url ??
+        `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+
+      return {
+        id: item.id ?? `${playlistId}-${snippet.position ?? 0}`,
+        videoId,
+        title: snippet.title ?? "Untitled playlist item",
+        channelTitle: snippet.channelTitle ?? "Unknown channel",
+        thumbnailUrl,
+        position: snippet.position ?? 0,
+      };
+    })
+    .filter((item): item is PlaylistEntry => Boolean(item));
 }

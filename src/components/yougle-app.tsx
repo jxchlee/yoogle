@@ -217,7 +217,7 @@ function YougleShell({ logoTheme }: { logoTheme: LogoTheme }) {
     }
 
     const next = new URLSearchParams();
-    next.set("video", video.id);
+    next.set(video.resourceType === "playlist" ? "playlist" : "video", video.id);
 
     if (activeQuery) {
       next.set("q", activeQuery);
@@ -263,6 +263,9 @@ function YougleShell({ logoTheme }: { logoTheme: LogoTheme }) {
   };
 
   const home = !activeQuery;
+  const openResult = (result: SearchResult) => {
+    openVideo(result);
+  };
 
   return (
     <>
@@ -378,7 +381,7 @@ function YougleShell({ logoTheme }: { logoTheme: LogoTheme }) {
                 <button
                   key={`${result.id}-${result.publishedAt}`}
                   type="button"
-                  onClick={() => openVideo(result)}
+                  onClick={() => openResult(result)}
                   className="flex w-full cursor-pointer flex-col gap-3 text-left sm:flex-row"
                 >
                   <div className="relative w-full overflow-hidden rounded-xl bg-[#0f0f0f] sm:w-[360px] sm:shrink-0">
@@ -389,16 +392,24 @@ function YougleShell({ logoTheme }: { logoTheme: LogoTheme }) {
                       height={404}
                       className="aspect-video w-full object-cover"
                     />
-                    <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-xs font-medium text-white">
-                      {result.duration}
-                    </span>
+                    {result.resourceType === "video" ? (
+                      <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-xs font-medium text-white">
+                        {result.duration}
+                      </span>
+                    ) : (
+                      <div className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-xs font-medium text-white">
+                        Playlist - {result.playlistItemCount ?? "?"} videos
+                      </div>
+                    )}
                   </div>
                   <div className="min-w-0 pt-0.5">
                     <h2 className="line-clamp-2 text-[18px] font-normal leading-7 text-[#0f0f0f]">
                       {result.title}
                     </h2>
                     <p className="mt-1 text-xs text-[#606060]">
-                      {result.viewCount ?? "Views hidden"} - {result.publishedLabel}
+                      {result.resourceType === "playlist"
+                        ? `Playlist - ${result.playlistItemCount ?? "?"} videos - ${result.publishedLabel}`
+                        : `${result.viewCount ?? "Views hidden"} - ${result.publishedLabel}`}
                     </p>
                     <p className="mt-3 text-sm text-[#606060]">{result.channelTitle}</p>
                     <p className="mt-3 line-clamp-2 text-sm leading-6 text-[#606060]">

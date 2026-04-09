@@ -14,7 +14,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { Logo, SearchForm, SiteFooter } from "@/components/yougle-common";
 import { HistorySheet, PrefsSheet } from "@/components/yougle-sheets";
-import type { SearchResponse, SearchResult, WatchHistoryItem } from "@/lib/types";
+import type {
+  PlaylistEntry,
+  SearchResponse,
+  SearchResult,
+  WatchHistoryItem,
+} from "@/lib/types";
 import type { LogoTheme } from "@/lib/logo-theme";
 import {
   DEFAULT_SETTINGS,
@@ -72,11 +77,25 @@ function escapeHtmlAttribute(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
 }
 
+function playlistEntryToResult(item: PlaylistEntry): SearchResult {
+  return {
+    id: item.videoId,
+    resourceType: "video",
+    title: item.title,
+    channelTitle: item.channelTitle,
+    description: "",
+    thumbnailUrl: item.thumbnailUrl,
+    publishedAt: new Date().toISOString(),
+    publishedLabel: "From this playlist",
+  };
+}
+
 function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeQuery = searchParams.get("q")?.trim() ?? "";
   const videoId = searchParams.get("video") ?? "";
+  const playlistId = searchParams.get("playlist") ?? "";
   const startAt = sanitizeStartSeconds(searchParams.get("t"));
 
   const [inputValue, setInputValue] = useState(activeQuery);
@@ -84,6 +103,7 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchHistoryItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [playlistEntries, setPlaylistEntries] = useState<PlaylistEntry[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<SearchResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,24 +201,98 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
   }, [activeQuery, settings.regionCode]);
 
   useEffect(() => {
-    if (!videoId) {
+    if (!playlistId) {
+      setPlaylistEntries([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadPlaylistEntries = async () => {
+      try {
+        const response = await fetch(
+          `/api/playlist-items?playlistId=${encodeURIComponent(playlistId)}`,
+          { cache: "no-store" },
+        );
+        const payload = (await response.json()) as
+          | { items: PlaylistEntry[] }
+          | { error: string };
+
+        if (!response.ok || !("items" in payload)) {
+          throw new Error(
+            "error" in payload ? payload.error : "Playlist items could not be loaded.",
+          );
+        }
+
+        if (!cancelled) {
+          setPlaylistEntries(payload.items);
+        }
+      } catch {
+        if (!cancelled) {
+          setPlaylistEntries([]);
+        }
+      }
+    };
+
+    void loadPlaylistEntries();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [playlistId]);
+
+  useEffect(() => {
+    if (!playlistId || videoId || playlistEntries.length === 0) {
+      return;
+    }
+
+    const firstItem = playlistEntries[0];
+
+    if (!firstItem) {
+      return;
+    }
+
+    startTransition(() => {
+      const next = new URLSearchParams();
+      next.set("playlist", playlistId);
+      next.set("video", firstItem.videoId);
+
+      if (activeQuery) {
+        next.set("q", activeQuery);
+      }
+
+      router.replace(`/watch?${next.toString()}`);
+    });
+  }, [playlistId, videoId, playlistEntries, activeQuery, router]);
+
+  useEffect(() => {
+    const targetId = videoId || playlistId;
+
+    if (!targetId) {
       setSelectedVideo(null);
       return;
     }
 
-    const match = results.find((item) => item.id === videoId);
+    const match = results.find((item) => item.id === targetId);
 
     if (match) {
       setSelectedVideo(match);
       return;
     }
 
-    const watched = watchHistory.find((item) => item.id === videoId);
+    const playlistMatch = playlistEntries.find((item) => item.videoId === targetId);
+
+    if (playlistMatch) {
+      setSelectedVideo(playlistEntryToResult(playlistMatch));
+      return;
+    }
+
+    const watched = watchHistory.find((item) => item.id === targetId);
 
     if (watched) {
       setSelectedVideo(watchHistoryToResult(watched));
     }
-  }, [results, videoId, watchHistory]);
+  }, [results, videoId, playlistId, watchHistory, playlistEntries]);
 
   const submitSearch = (query: string) => {
     const trimmed = query.trim();
@@ -230,7 +324,7 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
 
     startTransition(() => {
       const next = new URLSearchParams();
-      next.set("video", video.id);
+      next.set(video.resourceType === "playlist" ? "playlist" : "video", video.id);
 
       if (activeQuery) {
         next.set("q", activeQuery);
@@ -279,16 +373,29 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
           .filter((item) => item.id !== selectedVideo?.id)
           .map(watchHistoryToResult);
   const manualStartSeconds = includeStartTime ? parseStartTimeToSeconds(startTimeInput) : 0;
+  const shareTargetId = selectedVideo?.resourceType === "playlist" ? playlistId : selectedVideo?.id;
   const shareUrl =
-    selectedVideo && typeof window !== "undefined"
-      ? `${window.location.origin}/watch?video=${selectedVideo.id}${
-          activeQuery ? `&q=${encodeURIComponent(activeQuery)}` : ""
-        }${includeStartTime && manualStartSeconds > 0 ? `&t=${manualStartSeconds}` : ""}`
+    shareTargetId && typeof window !== "undefined"
+      ? `${window.location.origin}/watch?${
+          selectedVideo?.resourceType === "playlist"
+            ? `playlist=${shareTargetId}`
+            : `video=${shareTargetId}`
+        }${activeQuery ? `&q=${encodeURIComponent(activeQuery)}` : ""}${
+          includeStartTime && manualStartSeconds > 0 ? `&t=${manualStartSeconds}` : ""
+        }`
       : "";
   const embedUrl = selectedVideo
-    ? `https://www.youtube.com/embed/${selectedVideo.id}?rel=0${
-        includeStartTime && manualStartSeconds > 0 ? `&start=${manualStartSeconds}` : ""
-      }`
+    ? selectedVideo.resourceType === "playlist"
+      ? `https://www.youtube.com/embed/videoseries?list=${selectedVideo.id}${
+          includeStartTime && manualStartSeconds > 0 ? `&start=${manualStartSeconds}` : ""
+        }`
+      : playlistId
+        ? `https://www.youtube.com/embed/${selectedVideo.id}?list=${playlistId}&rel=0${
+            includeStartTime && manualStartSeconds > 0 ? `&start=${manualStartSeconds}` : ""
+          }`
+        : `https://www.youtube.com/embed/${selectedVideo.id}?rel=0${
+            includeStartTime && manualStartSeconds > 0 ? `&start=${manualStartSeconds}` : ""
+          }`
     : "";
   const embedCode = selectedVideo
     ? `<iframe width="560" height="315" src="${embedUrl}" title="${escapeHtmlAttribute(
@@ -391,7 +498,13 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
                     <div className="aspect-video">
                       <iframe
                         title={selectedVideo.title}
-                        src={`https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&playsinline=1&rel=0${startAt > 0 ? `&start=${startAt}` : ""}`}
+                        src={
+                          selectedVideo.resourceType === "playlist"
+                            ? `https://www.youtube.com/embed/videoseries?list=${selectedVideo.id}${startAt > 0 ? `&start=${startAt}` : ""}`
+                            : playlistId
+                              ? `https://www.youtube.com/embed/${selectedVideo.id}?list=${playlistId}&autoplay=1&playsinline=1&rel=0${startAt > 0 ? `&start=${startAt}` : ""}`
+                              : `https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&playsinline=1&rel=0${startAt > 0 ? `&start=${startAt}` : ""}`
+                        }
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
                         className="h-full w-full"
@@ -404,12 +517,19 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
                       {selectedVideo.title}
                     </h1>
                     <p className="mt-3 text-sm text-[#606060]">
-                      {selectedVideo.channelTitle} - {selectedVideo.viewCount ?? "Views hidden"} -{" "}
-                      {selectedVideo.publishedLabel}
+                      {selectedVideo.channelTitle} -{" "}
+                      {selectedVideo.resourceType === "playlist"
+                        ? `${selectedVideo.playlistItemCount ?? "?"} videos`
+                        : selectedVideo.viewCount ?? "Views hidden"}{" "}
+                      - {selectedVideo.publishedLabel}
                     </p>
                     <div className="mt-4 flex flex-wrap gap-3">
                       <a
-                        href={`https://www.youtube.com/watch?v=${selectedVideo.id}`}
+                        href={
+                          selectedVideo.resourceType === "playlist"
+                            ? `https://www.youtube.com/playlist?list=${selectedVideo.id}`
+                            : `https://www.youtube.com/watch?v=${selectedVideo.id}`
+                        }
                         target="_blank"
                         rel="noreferrer"
                         className="youtube-link-button inline-flex h-10 items-center justify-center rounded-full px-5 text-sm font-medium transition-colors"
@@ -445,7 +565,11 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
             <aside>
               <div className="mb-4">
                 <h2 className="text-base font-medium text-[#202124]">
-                  {activeQuery ? `More results for "${activeQuery}"` : "More videos"}
+                  {playlistId
+                    ? "Playlist"
+                    : activeQuery
+                      ? `More results for "${activeQuery}"`
+                      : "More videos"}
                 </h2>
               </div>
 
@@ -453,36 +577,93 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
                 <div className="text-sm text-[#606060]">Loading videos...</div>
               ) : (
                 <div className="space-y-4">
-                  {sideResults.map((item) => (
-                    <button
-                      key={`${item.id}-${item.publishedAt}`}
-                      type="button"
-                      onClick={() => openVideo(item)}
-                      className="flex w-full cursor-pointer gap-3 text-left"
-                    >
-                      <div className="relative w-[168px] shrink-0 overflow-hidden rounded-xl bg-[#0f0f0f]">
-                        <Image
-                          src={item.thumbnailUrl}
-                          alt={item.title}
-                          width={336}
-                          height={188}
-                          className="aspect-video w-full object-cover"
-                        />
-                        <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-medium text-white">
-                          {item.duration}
-                        </span>
+                  {playlistEntries.length > 0 ? (
+                    <div className="rounded-2xl border border-[var(--line)]">
+                      <div className="border-b border-[var(--line)] px-4 py-3 text-sm font-medium text-[#202124]">
+                        Playlist items
                       </div>
-                      <div className="min-w-0 pt-0.5">
-                        <p className="line-clamp-2 text-sm leading-6 text-[#0f0f0f]">
-                          {item.title}
-                        </p>
-                        <p className="mt-1 text-xs text-[#606060]">{item.channelTitle}</p>
-                        <p className="mt-1 text-xs text-[#606060]">
-                          {item.viewCount ?? "Views hidden"} - {item.publishedLabel}
-                        </p>
+                      <div className="max-h-[420px] overflow-y-auto p-3">
+                        <div className="space-y-3">
+                          {playlistEntries.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() =>
+                                router.push(
+                                  `/watch?playlist=${playlistId}&video=${item.videoId}${activeQuery ? `&q=${encodeURIComponent(activeQuery)}` : ""}`,
+                                )
+                              }
+                              className="flex w-full cursor-pointer gap-3 rounded-xl text-left hover:bg-[#f8f9fa]"
+                            >
+                              <div className="relative w-[168px] shrink-0 overflow-hidden rounded-xl bg-[#0f0f0f]">
+                                <Image
+                                  src={item.thumbnailUrl}
+                                  alt={item.title}
+                                  width={336}
+                                  height={188}
+                                  className="aspect-video w-full object-cover"
+                                />
+                                <div className="absolute inset-y-0 left-0 flex w-8 items-center justify-center bg-black/55 text-xs font-semibold text-white">
+                                  {item.position + 1}
+                                </div>
+                              </div>
+                              <div className="min-w-0 pt-0.5 pr-1">
+                                <p className="line-clamp-2 text-sm leading-6 text-[#0f0f0f]">
+                                  {item.title}
+                                </p>
+                                <p className="mt-1 text-xs text-[#606060]">
+                                  {item.channelTitle}
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </button>
-                  ))}
+                    </div>
+                  ) : null}
+
+                  {sideResults.length > 0 ? (
+                    <div className="space-y-4">
+                      {sideResults.map((item) => (
+                        <button
+                          key={`${item.id}-${item.publishedAt}`}
+                          type="button"
+                          onClick={() => openVideo(item)}
+                          className="flex w-full cursor-pointer gap-3 text-left"
+                        >
+                          <div className="relative w-[168px] shrink-0 overflow-hidden rounded-xl bg-[#0f0f0f]">
+                            <Image
+                              src={item.thumbnailUrl}
+                              alt={item.title}
+                              width={336}
+                              height={188}
+                              className="aspect-video w-full object-cover"
+                            />
+                            {item.resourceType === "video" ? (
+                              <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1.5 py-0.5 text-[11px] font-medium text-white">
+                                {item.duration}
+                              </span>
+                            ) : (
+                              <div className="absolute inset-x-0 bottom-0 bg-black/70 px-2 py-1 text-[11px] font-medium text-white">
+                                Playlist - {item.playlistItemCount ?? "?"} videos
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 pt-0.5">
+                            <p className="line-clamp-2 text-sm leading-6 text-[#0f0f0f]">
+                              {item.title}
+                            </p>
+                            <p className="mt-1 text-xs text-[#606060]">{item.channelTitle}</p>
+                            <p className="mt-1 text-xs text-[#606060]">
+                              {item.resourceType === "playlist"
+                                ? `${item.playlistItemCount ?? "?"} videos - ${item.publishedLabel}`
+                                : `${item.viewCount ?? "Views hidden"} - ${item.publishedLabel}`}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               )}
             </aside>
@@ -503,7 +684,7 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
         }}
         onRemoveSearch={removeSearchItem}
         onRemoveWatch={(id) =>
-          persistWatchHistory(watchHistory.filter((item) => item.id !== id))
+          persistWatchHistory(watchHistory.filter((entry) => entry.id !== id))
         }
         onClearSearch={clearSearchItems}
         onClearWatch={clearWatchItems}

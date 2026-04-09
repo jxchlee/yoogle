@@ -1,8 +1,9 @@
-import type { SearchResponse, SearchResult } from "@/lib/types";
+import type { PlaylistEntry, SearchResponse, SearchResult } from "@/lib/types";
 
-const SAMPLE_VIDEOS = [
+const SAMPLE_RESULTS = [
   {
     id: "jfKfPfyJRdk",
+    resourceType: "video" as const,
     title: "lofi hip hop radio - beats to relax/study to",
     channelTitle: "Lofi Girl",
     description:
@@ -11,7 +12,17 @@ const SAMPLE_VIDEOS = [
     viewCount: "13M views",
   },
   {
+    id: "PLrAXtmRdnEQy6nuLMHjMZOz59f4vHh3QG",
+    resourceType: "playlist" as const,
+    title: "One Punch Man Full Openings and Themes",
+    channelTitle: "Anime Playlist Archive",
+    description:
+      "A sample playlist result to test playlist rendering and watch-page playlist embedding.",
+    playlistItemCount: 18,
+  },
+  {
     id: "ysz5S6PUM-U",
+    resourceType: "video" as const,
     title: "YouTube Developers Live: Search API walkthrough",
     channelTitle: "Google for Developers",
     description:
@@ -20,7 +31,17 @@ const SAMPLE_VIDEOS = [
     viewCount: "95K views",
   },
   {
+    id: "PLjq6DwYksrzxsfMkXHOU0sN6RVemYByW_",
+    resourceType: "playlist" as const,
+    title: "Focused coding music playlist",
+    channelTitle: "Momentum FM",
+    description:
+      "Sample playlist content for a playlist-style search result row.",
+    playlistItemCount: 27,
+  },
+  {
     id: "aqz-KE-bpKQ",
+    resourceType: "video" as const,
     title: "Big Buck Bunny in 4K",
     channelTitle: "Blender Foundation",
     description:
@@ -30,6 +51,7 @@ const SAMPLE_VIDEOS = [
   },
   {
     id: "ScMzIvxBSi4",
+    resourceType: "video" as const,
     title: "Calm coding playlist for deep work",
     channelTitle: "Focus Lab",
     description:
@@ -39,6 +61,7 @@ const SAMPLE_VIDEOS = [
   },
   {
     id: "M7lc1UVf-VE",
+    resourceType: "video" as const,
     title: "YouTube IFrame Player API Demo",
     channelTitle: "YouTube Developers",
     description:
@@ -48,6 +71,7 @@ const SAMPLE_VIDEOS = [
   },
   {
     id: "3fumBcKC6RE",
+    resourceType: "video" as const,
     title: "Frontend architecture in one sitting",
     channelTitle: "System Design Notes",
     description:
@@ -57,6 +81,7 @@ const SAMPLE_VIDEOS = [
   },
   {
     id: "5qap5aO4i9A",
+    resourceType: "video" as const,
     title: "Deep focus radio for late-night shipping",
     channelTitle: "Lofi Girl",
     description:
@@ -66,6 +91,7 @@ const SAMPLE_VIDEOS = [
   },
   {
     id: "9bZkp7q19f0",
+    resourceType: "video" as const,
     title: "High-energy search result sample",
     channelTitle: "Sample Channel",
     description:
@@ -75,6 +101,7 @@ const SAMPLE_VIDEOS = [
   },
   {
     id: "dQw4w9WgXcQ",
+    resourceType: "video" as const,
     title: "Unexpected but reliable MVP test video",
     channelTitle: "Demo Archive",
     description:
@@ -84,6 +111,7 @@ const SAMPLE_VIDEOS = [
   },
   {
     id: "FTQbiNvZqaY",
+    resourceType: "video" as const,
     title: "Product thinking and launch rituals",
     channelTitle: "Maker Notes",
     description:
@@ -93,6 +121,7 @@ const SAMPLE_VIDEOS = [
   },
   {
     id: "60ItHLz5WEA",
+    resourceType: "video" as const,
     title: "Playlist for building the first version",
     channelTitle: "Momentum FM",
     description:
@@ -102,6 +131,7 @@ const SAMPLE_VIDEOS = [
   },
   {
     id: "2Vv-BfVoq4g",
+    resourceType: "video" as const,
     title: "Design polish for product MVPs",
     channelTitle: "Interface Journal",
     description:
@@ -111,7 +141,11 @@ const SAMPLE_VIDEOS = [
   },
 ];
 
-function thumbnailUrl(id: string) {
+function thumbnailUrl(id: string, resourceType: "video" | "playlist") {
+  if (resourceType === "playlist") {
+    return "https://i.ytimg.com/vi/jfKfPfyJRdk/hqdefault.jpg";
+  }
+
   return `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
 }
 
@@ -121,19 +155,21 @@ export function createSampleSearchResponse(
 ): SearchResponse {
   const normalizedQuery = query.trim();
   const pageIndex = pageToken === "page-2" ? 1 : 0;
-  const items = SAMPLE_VIDEOS.slice(pageIndex * 6, pageIndex * 6 + 6).map(
-    (video, index): SearchResult => ({
-      id: video.id,
-      title: `${video.title} - ${normalizedQuery}`,
-      channelTitle: video.channelTitle,
-      description: video.description,
-      thumbnailUrl: thumbnailUrl(video.id),
+  const items = SAMPLE_RESULTS.slice(pageIndex * 6, pageIndex * 6 + 6).map(
+    (item, index): SearchResult => ({
+      id: item.id,
+      resourceType: item.resourceType,
+      title: `${item.title} - ${normalizedQuery}`,
+      channelTitle: item.channelTitle,
+      description: item.description,
+      thumbnailUrl: thumbnailUrl(item.id, item.resourceType),
       publishedAt: new Date(
         Date.now() - (index + pageIndex * 6) * 86_400_000,
       ).toISOString(),
       publishedLabel: `${index + 1 + pageIndex * 6}d ago`,
-      duration: video.duration,
-      viewCount: video.viewCount,
+      duration: item.duration,
+      playlistItemCount: item.playlistItemCount,
+      viewCount: item.viewCount,
     }),
   );
 
@@ -142,4 +178,15 @@ export function createSampleSearchResponse(
     nextPageToken: pageIndex === 0 ? "page-2" : null,
     source: "sample",
   };
+}
+
+export function createSamplePlaylistEntries(playlistId: string): PlaylistEntry[] {
+  return Array.from({ length: 8 }).map((_, index) => ({
+    id: `${playlistId}-${index + 1}`,
+    videoId: SAMPLE_RESULTS[index % SAMPLE_RESULTS.length]?.id ?? "jfKfPfyJRdk",
+    title: `Sample playlist item ${index + 1}`,
+    channelTitle: "Anime Playlist Archive",
+    thumbnailUrl: "https://i.ytimg.com/vi/jfKfPfyJRdk/hqdefault.jpg",
+    position: index,
+  }));
 }

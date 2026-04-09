@@ -141,6 +141,7 @@ export function saveSearch(history: string[], query: string) {
 export function saveWatch(history: WatchHistoryItem[], video: SearchResult) {
   const nextItem: WatchHistoryItem = {
     id: video.id,
+    resourceType: video.resourceType,
     title: video.title,
     channelTitle: video.channelTitle,
     description: video.description,
@@ -148,6 +149,7 @@ export function saveWatch(history: WatchHistoryItem[], video: SearchResult) {
     publishedAt: video.publishedAt,
     publishedLabel: video.publishedLabel,
     duration: video.duration,
+    playlistItemCount: video.playlistItemCount,
     viewCount: video.viewCount,
     watchedAt: new Date().toISOString(),
   };
@@ -187,13 +189,15 @@ export function timeAgo(input: string) {
 export function watchHistoryToResult(item: WatchHistoryItem): SearchResult {
   return {
     id: item.id,
+    resourceType: item.resourceType ?? "video",
     title: item.title,
     channelTitle: item.channelTitle,
     description: item.description ?? "Opened from your yougle watch history.",
     thumbnailUrl: item.thumbnailUrl,
     publishedAt: item.publishedAt ?? item.watchedAt,
     publishedLabel: item.publishedLabel ?? "From your history",
-    duration: item.duration ?? "Saved",
+    duration: item.duration,
+    playlistItemCount: item.playlistItemCount,
     viewCount: item.viewCount,
   };
 }

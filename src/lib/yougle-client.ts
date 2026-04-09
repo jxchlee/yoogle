@@ -22,8 +22,21 @@ const searchCacheMemory = new Map<string, SearchCacheEntry>();
 export const DEFAULT_SETTINGS: StoredSettings = {
   searchHistoryEnabled: true,
   watchHistoryEnabled: true,
-  regionCode: "KR",
+  regionCode: "US",
 };
+
+const LANGUAGE_REGION_MAP: Array<[string, string]> = [
+  ["ko", "KR"],
+  ["ja", "JP"],
+  ["en-us", "US"],
+  ["en-gb", "GB"],
+  ["en-au", "AU"],
+  ["en-ca", "CA"],
+  ["fr", "FR"],
+  ["de", "DE"],
+  ["hi", "IN"],
+  ["en-in", "IN"],
+];
 
 export function readStore<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") {
@@ -45,6 +58,50 @@ export function readStore<T>(key: string, fallback: T): T {
 
 export function writeStore<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+export function detectRegionFromBrowserLanguage() {
+  if (typeof window === "undefined") {
+    return DEFAULT_SETTINGS.regionCode;
+  }
+
+  const browserLanguages = [
+    ...(window.navigator.languages ?? []),
+    window.navigator.language,
+  ]
+    .filter(Boolean)
+    .map((value) => value.toLowerCase());
+
+  for (const language of browserLanguages) {
+    const exactMatch = LANGUAGE_REGION_MAP.find(([code]) => code === language);
+
+    if (exactMatch) {
+      return exactMatch[1];
+    }
+
+    const prefixMatch = LANGUAGE_REGION_MAP.find(([code]) =>
+      language.startsWith(code),
+    );
+
+    if (prefixMatch) {
+      return prefixMatch[1];
+    }
+  }
+
+  return "US";
+}
+
+export function getInitialSettings() {
+  const storedSettings = readStore<StoredSettings | null>(SETTINGS_KEY, null);
+
+  if (storedSettings) {
+    return storedSettings;
+  }
+
+  return {
+    ...DEFAULT_SETTINGS,
+    regionCode: detectRegionFromBrowserLanguage(),
+  };
 }
 
 function makeSearchCacheKey(

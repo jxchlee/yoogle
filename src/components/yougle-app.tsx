@@ -18,7 +18,7 @@ import { HistorySheet, PrefsSheet } from "@/components/yougle-sheets";
 import type { SearchResponse, SearchResult, WatchHistoryItem } from "@/lib/types";
 import type { LogoTheme } from "@/lib/logo-theme";
 import {
-  DEFAULT_SETTINGS,
+  getInitialSettings,
   getSearchCache,
   readStore,
   saveSearch,
@@ -39,7 +39,7 @@ function YougleShell({ logoTheme }: { logoTheme: LogoTheme }) {
   const activeQuery = searchParams.get("q")?.trim() ?? "";
 
   const [inputValue, setInputValue] = useState(activeQuery);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState(getInitialSettings);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchHistoryItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -58,7 +58,7 @@ function YougleShell({ logoTheme }: { logoTheme: LogoTheme }) {
   }, [activeQuery]);
 
   useEffect(() => {
-    setSettings(readStore(SETTINGS_KEY, DEFAULT_SETTINGS));
+    setSettings(getInitialSettings());
     setSearchHistory(readStore<string[]>(SEARCH_HISTORY_KEY, []));
     setWatchHistory(readStore<WatchHistoryItem[]>(WATCH_HISTORY_KEY, []));
   }, []);

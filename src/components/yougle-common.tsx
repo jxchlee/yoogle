@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
+import { LOGO_THEMES, type LogoTheme } from "@/lib/logo-theme";
+
 function GearIcon() {
   return (
     <svg
@@ -16,19 +18,27 @@ function GearIcon() {
   );
 }
 
-export function Logo({ small = false }: { small?: boolean }) {
+export function Logo({
+  small = false,
+  theme = "classic",
+}: {
+  small?: boolean;
+  theme?: LogoTheme;
+}) {
+  const colors = LOGO_THEMES[theme];
+
   return (
     <div
       className={`select-none font-medium tracking-tight ${
         small ? "text-[1.7rem]" : "text-[5rem] sm:text-[5.8rem]"
       }`}
     >
-      <span className="text-[#4285f4]">y</span>
-      <span className="text-[#ea4335]">o</span>
-      <span className="text-[#fbbc05]">u</span>
-      <span className="text-[#4285f4]">g</span>
-      <span className="text-[#34a853]">l</span>
-      <span className="text-[#ea4335]">e</span>
+      <span style={{ color: colors[0] }}>y</span>
+      <span style={{ color: colors[1] }}>o</span>
+      <span style={{ color: colors[2] }}>u</span>
+      <span style={{ color: colors[3] }}>g</span>
+      <span style={{ color: colors[4] }}>l</span>
+      <span style={{ color: colors[5] }}>e</span>
     </div>
   );
 }

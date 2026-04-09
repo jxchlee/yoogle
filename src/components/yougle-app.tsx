@@ -16,6 +16,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Logo, SearchForm, SiteFooter, TopBar } from "@/components/yougle-common";
 import { HistorySheet, PrefsSheet } from "@/components/yougle-sheets";
 import type { SearchResponse, SearchResult, WatchHistoryItem } from "@/lib/types";
+import type { LogoTheme } from "@/lib/logo-theme";
 import {
   DEFAULT_SETTINGS,
   getSearchCache,
@@ -31,7 +32,7 @@ import {
   writeStore,
 } from "@/lib/yougle-client";
 
-function YougleShell() {
+function YougleShell({ logoTheme }: { logoTheme: LogoTheme }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -282,7 +283,7 @@ function YougleShell() {
             />
             <div className="w-full max-w-[584px]">
               <div className="flex justify-center">
-                <Logo />
+                <Logo theme={logoTheme} />
               </div>
               <div className="mt-8">
                 <SearchForm
@@ -307,7 +308,7 @@ function YougleShell() {
                   onClick={() => router.push("/")}
                   className="shrink-0 cursor-pointer"
                 >
-                  <Logo small />
+                  <Logo small theme={logoTheme} />
                 </button>
               </div>
               <div className="w-full justify-self-center">
@@ -450,10 +451,10 @@ function YougleShell() {
   );
 }
 
-export function YougleApp() {
+export function YougleApp({ logoTheme }: { logoTheme: LogoTheme }) {
   return (
     <Suspense fallback={<main className="min-h-screen bg-white" />}>
-      <YougleShell />
+      <YougleShell logoTheme={logoTheme} />
     </Suspense>
   );
 }

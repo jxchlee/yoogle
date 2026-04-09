@@ -15,6 +15,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Logo, SearchForm, SiteFooter } from "@/components/yougle-common";
 import { HistorySheet, PrefsSheet } from "@/components/yougle-sheets";
 import type { SearchResponse, SearchResult, WatchHistoryItem } from "@/lib/types";
+import type { LogoTheme } from "@/lib/logo-theme";
 import {
   DEFAULT_SETTINGS,
   getSearchCache,
@@ -71,7 +72,7 @@ function escapeHtmlAttribute(value: string) {
   return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;");
 }
 
-function WatchPageShell() {
+function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeQuery = searchParams.get("q")?.trim() ?? "";
@@ -323,7 +324,7 @@ function WatchPageShell() {
                 onClick={() => router.push("/")}
                 className="shrink-0 cursor-pointer"
               >
-                <Logo small />
+                <Logo small theme={logoTheme} />
               </button>
             </div>
             <div className="w-full justify-self-center">
@@ -618,10 +619,10 @@ function WatchPageShell() {
   );
 }
 
-export function YougleWatchPage() {
+export function YougleWatchPage({ logoTheme }: { logoTheme: LogoTheme }) {
   return (
     <Suspense fallback={<main className="min-h-screen bg-white" />}>
-      <WatchPageShell />
+      <WatchPageShell logoTheme={logoTheme} />
     </Suspense>
   );
 }

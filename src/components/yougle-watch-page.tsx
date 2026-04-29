@@ -8,6 +8,7 @@ import {
   useEffect,
   useEffectEvent,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -35,6 +36,72 @@ import {
   watchHistoryToResult,
   writeStore,
 } from "@/lib/yougle-client";
+
+type YouTubePlayerInstance = {
+  getCurrentTime: () => number;
+};
+
+type YouTubeIframeApi = {
+  Player: new (element: HTMLIFrameElement | string) => YouTubePlayerInstance;
+};
+
+declare global {
+  interface Window {
+    YT?: YouTubeIframeApi;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+let youTubeIframeApiPromise: Promise<YouTubeIframeApi> | null = null;
+
+function loadYouTubeIframeApi() {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("YouTube iframe API can only load in the browser."));
+  }
+
+  if (window.YT?.Player) {
+    return Promise.resolve(window.YT);
+  }
+
+  if (youTubeIframeApiPromise) {
+    return youTubeIframeApiPromise;
+  }
+
+  youTubeIframeApiPromise = new Promise((resolve, reject) => {
+    const previousReady = window.onYouTubeIframeAPIReady;
+
+    window.onYouTubeIframeAPIReady = () => {
+      previousReady?.();
+
+      if (window.YT?.Player) {
+        resolve(window.YT);
+        return;
+      }
+
+      youTubeIframeApiPromise = null;
+      reject(new Error("YouTube iframe API loaded without a player constructor."));
+    };
+
+    const existingScript = document.getElementById("youtube-iframe-api");
+
+    if (existingScript) {
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.id = "youtube-iframe-api";
+    script.src = "https://www.youtube.com/iframe_api";
+    script.async = true;
+    script.onerror = () => {
+      youTubeIframeApiPromise = null;
+      reject(new Error("YouTube iframe API failed to load."));
+    };
+
+    document.head.append(script);
+  });
+
+  return youTubeIframeApiPromise;
+}
 
 function parseStartTimeToSeconds(value: string) {
   const parts = value
@@ -71,6 +138,30 @@ function sanitizeStartSeconds(value: string | null) {
   }
 
   return Math.floor(seconds);
+}
+
+function getYouTubeWatchUrl(
+  video: SearchResult,
+  playlistId: string,
+  startSeconds: number,
+) {
+  if (video.resourceType === "playlist") {
+    return `https://www.youtube.com/playlist?list=${video.id}`;
+  }
+
+  const params = new URLSearchParams({
+    v: video.id,
+  });
+
+  if (playlistId) {
+    params.set("list", playlistId);
+  }
+
+  if (startSeconds > 0) {
+    params.set("t", `${startSeconds}s`);
+  }
+
+  return `https://www.youtube.com/watch?${params.toString()}`;
 }
 
 function escapeHtmlAttribute(value: string) {
@@ -116,6 +207,11 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
   const [includeStartTime, setIncludeStartTime] = useState(false);
   const [startTimeInput, setStartTimeInput] = useState("0:00");
   const deferredInput = useDeferredValue(inputValue);
+  const playerFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const playerApiRef = useRef<YouTubePlayerInstance | null>(null);
+  const playerElementRef = useRef<HTMLIFrameElement | null>(null);
+  const selectedVideoId = selectedVideo?.id ?? "";
+  const selectedVideoType = selectedVideo?.resourceType ?? "";
 
   useEffect(() => {
     setInputValue(activeQuery);
@@ -199,6 +295,42 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
   useEffect(() => {
     void runSearch(activeQuery);
   }, [activeQuery, settings.regionCode]);
+
+  useEffect(() => {
+    const frame = playerFrameRef.current;
+
+    if (!selectedVideoId || !frame) {
+      return;
+    }
+
+    if (playerElementRef.current === frame && playerApiRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const connectPlayerApi = async () => {
+      try {
+        const youTubeApi = await loadYouTubeIframeApi();
+
+        if (cancelled || !playerFrameRef.current) {
+          return;
+        }
+
+        playerApiRef.current = new youTubeApi.Player(playerFrameRef.current);
+        playerElementRef.current = playerFrameRef.current;
+      } catch {
+        playerApiRef.current = null;
+        playerElementRef.current = null;
+      }
+    };
+
+    void connectPlayerApi();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVideoId, selectedVideoType, playlistId, startAt]);
 
   useEffect(() => {
     if (!playlistId) {
@@ -403,6 +535,36 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
       )}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
     : "";
 
+  const getCurrentPlaybackSeconds = () => {
+    try {
+      const currentTime = playerApiRef.current?.getCurrentTime();
+
+      if (typeof currentTime === "number" && Number.isFinite(currentTime) && currentTime > 0) {
+        return Math.floor(currentTime);
+      }
+    } catch {
+      return startAt;
+    }
+
+    return startAt;
+  };
+
+  const handleOpenOnYouTube = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!selectedVideo) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const nextUrl = getYouTubeWatchUrl(
+      selectedVideo,
+      playlistId,
+      getCurrentPlaybackSeconds(),
+    );
+
+    window.open(nextUrl, "_blank", "noopener,noreferrer");
+  };
+
   const handleShareCopy = async () => {
     if (!selectedVideo) {
       return;
@@ -497,13 +659,14 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
                   <div className="overflow-hidden rounded-2xl bg-black">
                     <div className="aspect-video">
                       <iframe
+                        ref={playerFrameRef}
                         title={selectedVideo.title}
                         src={
                           selectedVideo.resourceType === "playlist"
-                            ? `https://www.youtube.com/embed/videoseries?list=${selectedVideo.id}${startAt > 0 ? `&start=${startAt}` : ""}`
+                            ? `https://www.youtube.com/embed/videoseries?list=${selectedVideo.id}&enablejsapi=1${startAt > 0 ? `&start=${startAt}` : ""}`
                             : playlistId
-                              ? `https://www.youtube.com/embed/${selectedVideo.id}?list=${playlistId}&autoplay=1&playsinline=1&rel=0${startAt > 0 ? `&start=${startAt}` : ""}`
-                              : `https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&playsinline=1&rel=0${startAt > 0 ? `&start=${startAt}` : ""}`
+                              ? `https://www.youtube.com/embed/${selectedVideo.id}?list=${playlistId}&autoplay=1&playsinline=1&rel=0&enablejsapi=1${startAt > 0 ? `&start=${startAt}` : ""}`
+                              : `https://www.youtube.com/embed/${selectedVideo.id}?autoplay=1&playsinline=1&rel=0&enablejsapi=1${startAt > 0 ? `&start=${startAt}` : ""}`
                         }
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
@@ -525,11 +688,8 @@ function WatchPageShell({ logoTheme }: { logoTheme: LogoTheme }) {
                     </p>
                     <div className="mt-4 flex flex-wrap gap-3">
                       <a
-                        href={
-                          selectedVideo.resourceType === "playlist"
-                            ? `https://www.youtube.com/playlist?list=${selectedVideo.id}`
-                            : `https://www.youtube.com/watch?v=${selectedVideo.id}`
-                        }
+                        href={getYouTubeWatchUrl(selectedVideo, playlistId, startAt)}
+                        onClick={handleOpenOnYouTube}
                         target="_blank"
                         rel="noreferrer"
                         className="youtube-link-button inline-flex h-10 items-center justify-center rounded-full px-5 text-sm font-medium transition-colors"
